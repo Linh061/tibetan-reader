@@ -18,11 +18,11 @@ class TextService:
         self.current_file = None
 
     def _find_data_dir(self):
-        """Find the data/texts directory."""
+        """Find the data/the_four_treatises/texts directory."""
         script_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
-            os.path.join(script_dir, '..', 'data', 'texts'),
-            os.path.join(script_dir, 'data', 'texts'),
+            os.path.join(script_dir, '..', 'data', 'the_four_treatises', 'texts'),
+            os.path.join(script_dir, 'data', 'the_four_treatises', 'texts'),
         ]
         for path in candidates:
             if os.path.isdir(path):

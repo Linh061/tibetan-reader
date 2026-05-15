@@ -32,9 +32,9 @@ dict_service = DictionaryService()
 text_service = TextService()
 
 # PDF directory
-PDF_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'pdfs')
+PDF_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'the_four_treatises', 'pdfs')
 # PDF cache directory (rendered PNGs)
-PDF_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'pdf_cache')
+PDF_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'the_four_treatises', 'pdf_cache')
 os.makedirs(PDF_CACHE_DIR, exist_ok=True)
 
 
