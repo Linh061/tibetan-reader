@@ -81,26 +81,48 @@ def dict_stats():
 
 @app.route('/api/dict/lookup')
 def dict_lookup():
-    """Look up a word in the dictionary."""
+    """Look up a word in the dictionary.
+    Returns exact match if found, along with fuzzy results.
+    """
     word = request.args.get('word', '').strip()
     if not word:
         return jsonify({'error': 'No word provided'}), 400
     
     entry = dict_service.lookup(word)
+    
+    # Always return fuzzy results alongside exact match
+    fuzzy_results = dict_service.fuzzy_search(word, max_results=30)
+    
+    response = {
+        'word': word,
+        'exact_match': entry,
+        'fuzzy_results': fuzzy_results,
+        'fuzzy_count': len(fuzzy_results),
+    }
+    
     if entry:
-        return jsonify(entry)
+        return jsonify(response)
     
-    # If exact match not found, try fuzzy search
-    fuzzy_results = dict_service.fuzzy_search(word, max_results=10)
-    if fuzzy_results:
-        return jsonify({
-            'error': 'Word not found exactly',
-            'word': word,
-            'fuzzy_results': fuzzy_results,
-            'fuzzy_count': len(fuzzy_results),
-        }), 404
+    return jsonify(response), 404 if not fuzzy_results else 200
+
+
+@app.route('/api/dict/fuzzy')
+def dict_fuzzy():
+    """Fuzzy search: find all words containing the query string.
+    This is the primary search method - returns results immediately as user types.
+    """
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'error': 'No query provided'}), 400
     
-    return jsonify({'error': 'Word not found', 'word': word}), 404
+    results = dict_service.fuzzy_search(query, max_results=50)
+    
+    return jsonify({
+        'query': query,
+        'results': results,
+        'total': len(results),
+    })
+
 
 @app.route('/api/dict/lookup-batch', methods=['POST'])
 def dict_lookup_batch():
@@ -460,13 +482,21 @@ def server_error(e):
 # ========== Main ==========
 
 def main():
-    # Load dictionary on startup
-    print("Loading dictionary...")
+    # Load Chinese dictionary on startup
+    print("Loading Chinese dictionary...")
     try:
         dict_service.load()
-        print(f"  ✓ Dictionary loaded: {dict_service.total_entries} entries")
+        print(f"  ✓ Chinese dictionary loaded: {dict_service.total_entries} entries")
     except Exception as e:
-        print(f"  ✗ Failed to load dictionary: {e}")
+        print(f"  ✗ Failed to load Chinese dictionary: {e}")
+
+    # Load English dictionary on startup
+    print("Loading English dictionary...")
+    try:
+        dict_service.load_en_dict()
+    except Exception as e:
+        print(f"  ✗ Failed to load English dictionary: {e}")
+
     
     # List available texts
     texts = text_service.list_texts()

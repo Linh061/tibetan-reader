@@ -110,14 +110,28 @@ class TextService:
         
         return collections
 
+    def _get_page_number(self, filepath):
+        """Extract page number from filename using regex.
+        Supports formats: page_001.txt, page 1.txt, 061-090 - page 1.txt, etc.
+        Returns the page number as int, or 0 if not found.
+        """
+        filename = os.path.basename(filepath)
+        match = re.search(r'page[_\s]*(\d+)', filename, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        return 0
+
     def _get_all_page_files(self, coll):
-        """Get all page files in order (Preface first, then PDF groups)."""
+        """Get all page files in order (Preface first, then PDF groups).
+        Files within each group are sorted numerically by page number,
+        not alphabetically by filename (to handle mixed naming conventions)."""
         all_files = []  # list of (group_name, filepath)
         
         # Preface first
         preface_dir = os.path.join(self.data_dir, 'Preface') if self.data_dir else None
         if preface_dir and os.path.isdir(preface_dir):
-            preface_files = sorted(glob.glob(os.path.join(preface_dir, '*.txt')))
+            preface_files = sorted(glob.glob(os.path.join(preface_dir, '*.txt')),
+                                   key=lambda f: self._get_page_number(f))
             for pf in preface_files:
                 all_files.append(('Preface', pf))
         
@@ -125,11 +139,13 @@ class TextService:
         for group_name in coll['pdf_groups']:
             group_dir = os.path.join(self.data_dir, group_name) if self.data_dir else None
             if group_dir and os.path.isdir(group_dir):
-                group_files = sorted(glob.glob(os.path.join(group_dir, '*.txt')))
+                group_files = sorted(glob.glob(os.path.join(group_dir, '*.txt')),
+                                     key=lambda f: self._get_page_number(f))
                 for gf in group_files:
                     all_files.append((group_name, gf))
         
         return all_files
+
 
     def get_collection_page(self, collection_id, page_num, page_size=30):
         """

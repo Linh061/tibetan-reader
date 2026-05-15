@@ -116,6 +116,126 @@
     font-style: italic;
 }
 
+/* Dictionary Results List (same as style.css for consistency) */
+.dict-results-count {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 4px;
+}
+
+.dict-results-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.dict-result-item {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+    cursor: default;
+}
+
+.dict-result-item:hover {
+    background: var(--accent-light);
+}
+
+.dict-result-exact {
+    background: var(--highlight);
+    border-left: 3px solid var(--accent);
+    border-radius: 2px;
+}
+
+.dict-result-tibetan {
+    font-family: var(--font-tibetan);
+    font-size: 0.95rem;
+    color: #5a3a1a;
+    margin-bottom: 2px;
+}
+
+.dict-result-meanings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.dict-pos-tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #e8ddd0;
+    color: #7a5c3a;
+    border: 1px solid #d6c5a8;
+    white-space: nowrap;
+}
+
+.dict-source-tag {
+    display: inline-block;
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.dict-source-zh {
+    background: #e8f0e8;
+    color: #3d7a3d;
+    border: 1px solid #b8d8b8;
+}
+
+.dict-source-en {
+    background: #e8eef5;
+    color: #3d5a7a;
+    border: 1px solid #b8c8d8;
+}
+
+.dict-source-both {
+    background: #f0e8d8;
+    color: #8a6a3a;
+    border: 1px solid #d8c8a8;
+}
+
+.dict-meaning-zh {
+    color: var(--text-primary);
+}
+
+.dict-meaning-en {
+    color: #5a7a3d;
+    font-style: italic;
+}
+
+.dict-no-results {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 8px 0;
+    text-align: center;
+}
+
+/* Dict popup styles */
+.dict-popup-tibetan {
+    font-family: var(--font-tibetan);
+    color: #5a3a1a;
+    margin-bottom: 4px;
+    font-size: 0.95rem;
+}
+
+.dict-popup-meanings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+
 /* ---- Search Panel (slide-down) ---- */
 
 .search-panel {

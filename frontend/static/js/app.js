@@ -40,6 +40,15 @@
         return div.innerHTML;
     }
 
+    function debounce(fn, delay) {
+        let timer;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+
     // ===== Dictionary Loading =====
     async function loadDictionary() {
         try {
@@ -93,39 +102,86 @@
     }
 
     // ===== Dictionary Search =====
+    function formatPosTag(r) {
+        let pos = r.pos || r.pos_cn || '';
+        if (!pos) return '';
+        return `<span class="dict-pos-tag">${escapeHtml(pos)}</span>`;
+    }
+
+    function formatSourceTag(source) {
+        if (source === 'en') return '<span class="dict-source-tag dict-source-en">EN</span>';
+        if (source === 'zh') return '<span class="dict-source-tag dict-source-zh">汉</span>';
+        if (source === 'zh+en') return '<span class="dict-source-tag dict-source-both">汉+EN</span>';
+        return '';
+    }
+
+    function formatMeaning(r) {
+        let parts = [];
+        if (r.chinese) {
+            parts.push(`<span class="dict-meaning-zh">${escapeHtml(r.chinese)}</span>`);
+        }
+        if (r.english) {
+            parts.push(`<span class="dict-meaning-en">${escapeHtml(r.english)}</span>`);
+        }
+        return parts.join(' ');
+    }
+
+    function renderDictResults(results, exactMatch) {
+        if (!results || results.length === 0) {
+            return '<div class="dict-no-results">未找到匹配词条</div>';
+        }
+        
+        let html = `<div class="dict-results-count">共 ${results.length} 个匹配结果</div>`;
+        html += '<div class="dict-results-list">';
+        
+        results.forEach((r, i) => {
+            const isExact = exactMatch && r.tibetan === exactMatch.tibetan;
+            const cls = isExact ? 'dict-result-item dict-result-exact' : 'dict-result-item';
+            html += `<div class="${cls}" data-index="${i}">
+                <div class="dict-result-tibetan">${escapeHtml(r.tibetan)}</div>
+                <div class="dict-result-meanings">
+                    ${formatPosTag(r)}
+                    ${formatSourceTag(r.source)}
+                    ${formatMeaning(r)}
+                </div>
+            </div>`;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
     async function dictSearch() {
         const word = dictSearchInput.value.trim();
-        if (!word) return;
+        if (!word) {
+            dictSearchResult.innerHTML = '';
+            return;
+        }
         
         try {
             const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                dictSearchResult.innerHTML = `<span class="found">${escapeHtml(data.tibetan)}: ${escapeHtml(data.chinese)}</span>`;
-            } else if (resp.status === 404) {
-                const data = await resp.json();
-                if (data.fuzzy_results && data.fuzzy_results.length > 0) {
-                    let html = '<span class="not-found">未找到，相近词:</span> ';
-                    html += data.fuzzy_results.slice(0, 5).map(r => 
-                        `<span style="cursor:pointer;color:var(--accent);text-decoration:underline;" onclick="document.getElementById('dictSearchInput').value='${escapeHtml(r.tibetan)}';dictSearch()">${escapeHtml(r.tibetan)} (${escapeHtml(r.chinese)})</span>`
-                    ).join(', ');
-                    dictSearchResult.innerHTML = html;
-                } else {
-                    dictSearchResult.innerHTML = `<span class="not-found">未找到: ${escapeHtml(word)}</span>`;
-                }
+            const data = await resp.json();
+            
+            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
             } else {
-                dictSearchResult.innerHTML = `<span class="not-found">查询失败</span>`;
+                dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
             }
         } catch (e) {
-            dictSearchResult.innerHTML = `<span class="not-found">查询出错</span>`;
+            dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
         }
     }
+
+    // Debounced search as user types
+    const debouncedDictSearch = debounce(dictSearch, 200);
 
     // ===== Event Listeners =====
     $('btnDictSearch').addEventListener('click', dictSearch);
     dictSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') dictSearch();
     });
+    dictSearchInput.addEventListener('input', debouncedDictSearch);
+
 
     // ===== Init =====
     loadDictionary();

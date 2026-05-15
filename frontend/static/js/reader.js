@@ -215,16 +215,22 @@
         // Try dictionary first
         try {
             const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                if (data.tibetan && data.chinese) {
-                    showDictPopup(word, data.chinese);
-                    return;
-                }
+            const data = await resp.json();
+            
+            if (data.exact_match) {
+                showDictPopup(data.exact_match);
+                return;
+            }
+            
+            // If no exact match but fuzzy results exist, show top result
+            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                showDictPopup(data.fuzzy_results[0]);
+                return;
             }
         } catch (e) {
             // Fall through
         }
+
         
         // Try Google Translate
         try {
@@ -245,12 +251,40 @@
         }
     }
 
-    function showDictPopup(word, meaning) {
+    function formatPosTag(r) {
+        let pos = r.pos || r.pos_cn || '';
+        if (!pos) return '';
+        return `<span class="dict-pos-tag">${escapeHtml(pos)}</span>`;
+    }
+
+    function formatSourceTag(source) {
+        if (source === 'en') return '<span class="dict-source-tag dict-source-en">EN</span>';
+        if (source === 'zh') return '<span class="dict-source-tag dict-source-zh">汉</span>';
+        if (source === 'zh+en') return '<span class="dict-source-tag dict-source-both">汉+EN</span>';
+        return '';
+    }
+
+    function formatMeaning(r) {
+        let parts = [];
+        if (r.chinese) {
+            parts.push(`<span class="dict-meaning-zh">${escapeHtml(r.chinese)}</span>`);
+        }
+        if (r.english) {
+            parts.push(`<span class="dict-meaning-en">${escapeHtml(r.english)}</span>`);
+        }
+        return parts.join(' ');
+    }
+
+    function showDictPopup(entry) {
         const popup = document.createElement('div');
         popup.className = 'dict-popup';
         popup.innerHTML = `
-            <div style="font-family:'Noto Serif Tibetan',serif;color:#5a3a1a;margin-bottom:4px;">${escapeHtml(word)}</div>
-            <div style="color:#3d7a3d;">${escapeHtml(meaning)}</div>
+            <div class="dict-popup-tibetan">${escapeHtml(entry.tibetan)}</div>
+            <div class="dict-popup-meanings">
+                ${formatPosTag(entry)}
+                ${formatSourceTag(entry.source)}
+                ${formatMeaning(entry)}
+            </div>
         `;
         
         const selection = window.getSelection();
@@ -280,9 +314,11 @@
         const popup = document.createElement('div');
         popup.className = 'dict-popup';
         popup.innerHTML = `
-            <div style="font-family:'Noto Serif Tibetan',serif;color:#5a3a1a;margin-bottom:4px;font-size:0.85rem;">藏文: ${escapeHtml(original)}</div>
-            <div style="color:#3d7a3d;">汉译: ${escapeHtml(translated)}</div>
-            <div style="font-size:0.7rem;color:#9b7a5a;margin-top:4px;">🌐 Google 翻译</div>
+            <div class="dict-popup-tibetan">${escapeHtml(original)}</div>
+            <div class="dict-popup-meanings">
+                <span class="dict-source-tag dict-source-zh">🌐</span>
+                <span class="dict-meaning-zh">${escapeHtml(translated)}</span>
+            </div>
         `;
         
         const selection = window.getSelection();
@@ -303,6 +339,7 @@
             });
         }, 100);
     }
+
 
     // ===== Edit Mode =====
     function enterEditMode() {
@@ -420,33 +457,56 @@
     }
 
     // ===== Dictionary Search =====
+    function renderDictResults(results, exactMatch) {
+        if (!results || results.length === 0) {
+            return '<div class="dict-no-results">未找到匹配词条</div>';
+        }
+        
+        let html = `<div class="dict-results-count">共 ${results.length} 个匹配结果</div>`;
+        html += '<div class="dict-results-list">';
+        
+        results.forEach((r, i) => {
+            const isExact = exactMatch && r.tibetan === exactMatch.tibetan;
+            const cls = isExact ? 'dict-result-item dict-result-exact' : 'dict-result-item';
+            html += `<div class="${cls}" data-index="${i}">
+                <div class="dict-result-tibetan">${escapeHtml(r.tibetan)}</div>
+                <div class="dict-result-meanings">
+                    ${formatPosTag(r)}
+                    ${formatSourceTag(r.source)}
+                    ${formatMeaning(r)}
+                </div>
+            </div>`;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
     async function dictSearch() {
         const word = dictSearchInput.value.trim();
-        if (!word) return;
+        if (!word) {
+            dictSearchResult.innerHTML = '';
+            return;
+        }
         
         try {
             const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                dictSearchResult.innerHTML = `<span class="found">${escapeHtml(data.tibetan)}: ${escapeHtml(data.chinese)}</span>`;
-            } else if (resp.status === 404) {
-                const data = await resp.json();
-                if (data.fuzzy_results && data.fuzzy_results.length > 0) {
-                    let html = '<span class="not-found">未找到，相近词:</span> ';
-                    html += data.fuzzy_results.slice(0, 5).map(r => 
-                        `<span style="cursor:pointer;color:var(--accent);text-decoration:underline;" onclick="document.getElementById('dictSearchInput').value='${escapeHtml(r.tibetan)}';dictSearch()">${escapeHtml(r.tibetan)} (${escapeHtml(r.chinese)})</span>`
-                    ).join(', ');
-                    dictSearchResult.innerHTML = html;
-                } else {
-                    dictSearchResult.innerHTML = `<span class="not-found">未找到: ${escapeHtml(word)}</span>`;
-                }
+            const data = await resp.json();
+            
+            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
             } else {
-                dictSearchResult.innerHTML = `<span class="not-found">查询失败</span>`;
+                dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
             }
         } catch (e) {
-            dictSearchResult.innerHTML = `<span class="not-found">查询出错</span>`;
+            dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
         }
     }
+
+    // Debounced search as user types
+    const debouncedDictSearch = debounce(dictSearch, 200);
+
+
 
     // ===== Search =====
     async function performSearch() {
@@ -535,6 +595,8 @@
     dictSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') dictSearch();
     });
+    dictSearchInput.addEventListener('input', debouncedDictSearch);
+
 
     // Search
     $('btnSearch').addEventListener('click', () => {
