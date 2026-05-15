@@ -47,7 +47,7 @@ class DictionaryService:
         """Find the English dictionary file relative to this script."""
         script_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
-            os.path.join(script_dir, 'data', 'tibetan-English_dictionary.json'),
+            os.path.join(script_dir, 'data', 'Tibetan-English_dictionary.json'),
             os.path.join(script_dir, '..', '..', 'tibetan-English_dictionary.json'),
         ]
         for path in candidates:
