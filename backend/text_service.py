@@ -101,7 +101,7 @@ class TextService:
         collections.append({
             'id': 'sibu_yidian',
             'title_cn': '德格版《四部医典》',
-            'title_bo': 'དེ་དགེ་པར་མའི་གསོ་བ་རིག་པའི་བསྟན་བཅོས།',
+            'title_bo': '༄༅།།སྡེ་དགེ་རྒྱུད་བཞི།།',
             'description': '藏医药经典文献集成 · 德格版《四部医典》全文OCR',
             'pdf_groups': sorted([c['id'] for c in coll_pages]),
             'total_pages': sum(c['page_count'] for c in coll_pages),

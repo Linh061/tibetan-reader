@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+CJK+TC:wght@400;700&family=Noto+Serif+Tibetan:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
     <link rel="stylesheet" href="/static/css/style.css">
 
 </head>
@@ -34,11 +35,53 @@
         <span class="dict-search-result" id="dictSearchResult"></span>
     </div>
 
+    <!-- ===== AI Settings Button ===== -->
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:4px;">
+        <button id="btnAiSettings" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);font-size:0.75rem;">🤖 AI 设置</button>
+    </div>
+
     <!-- ===== Status bar ===== -->
     <div class="status" id="statusMsg">
         <span class="spinner"></span> 加载词典 <strong>Tibetan-Chinese_dictionary.json</strong> …
     </div>
 </div>
+
+<!-- ===== AI Settings Modal ===== -->
+<div class="modal-overlay" id="aiSettingsModal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span style="font-size:1.1rem;font-weight:bold;">🤖 AI 辅助阅读设置</span>
+            <button id="btnCloseAiSettings" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);font-size:0.75rem;">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="ai-form-group">
+                <label>API 地址</label>
+                <input type="text" id="aiApiBase" placeholder="https://api.openai.com/v1" autocomplete="off">
+                <span class="ai-form-hint">支持任何 OpenAI 兼容 API（OpenAI、DeepSeek、通义千问、Ollama 等）</span>
+            </div>
+            <div class="ai-form-group">
+                <label>API Key</label>
+                <input type="password" id="aiApiKey" placeholder="sk-..." autocomplete="off">
+                <span class="ai-form-hint">API 密钥，仅保存在本地</span>
+            </div>
+            <div class="ai-form-group">
+                <label>模型名称</label>
+                <input type="text" id="aiModel" placeholder="gpt-4o-mini" autocomplete="off">
+                <span class="ai-form-hint">如 gpt-4o、deepseek-chat、qwen-plus、llama3 等</span>
+            </div>
+            <div class="ai-form-group">
+                <label>系统提示词</label>
+                <textarea id="aiSystemPrompt" rows="3" placeholder="你是一位藏文典籍阅读助手..."></textarea>
+            </div>
+            <div class="ai-form-group" style="display:flex;gap:8px;align-items:center;">
+                <button id="btnTestAi" class="btn-primary" style="background:var(--success);border-color:var(--success);">🔌 测试连接</button>
+                <button id="btnSaveAi" class="btn-primary">💾 保存配置</button>
+                <span id="aiTestResult" style="font-size:0.78rem;color:var(--text-muted);"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <script src="/static/js/app.js"></script>
 </body>

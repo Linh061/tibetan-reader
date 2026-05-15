@@ -24,6 +24,11 @@ class DictionaryService:
         self.en_total_entries = 0
         self.en_loaded = False
 
+        # Reverse lookup indexes (Chinese/English -> Tibetan)
+        self.zh_reverse_map = {}   # Chinese word fragment -> list of tibetan entries
+        self.en_reverse_map = {}   # English word fragment -> list of tibetan entries
+        self.reverse_loaded = False
+
     def _find_dict(self):
         """Find the Chinese dictionary file relative to this script."""
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -109,6 +114,112 @@ class DictionaryService:
         self.en_total_entries = len(self.en_word_map)
         self.en_loaded = True
         print(f"  ✓ English dictionary loaded: {self.en_total_entries} entries")
+
+    def build_reverse_index(self):
+        """Build reverse lookup indexes (Chinese/English -> Tibetan).
+        This allows searching by Chinese or English words to find Tibetan entries.
+        """
+        self.zh_reverse_map = {}
+        self.en_reverse_map = {}
+
+        # Build Chinese reverse index
+        for tibetan, entry in self.word_map.items():
+            chinese = entry.get('chinese', '')
+            if not chinese:
+                continue
+            # Split Chinese text into individual words/characters
+            # Chinese words are separated by various punctuation
+            for token in re.split(r'[，,、；;.\s（）()（）\[\]【】""「」『』:：]+', chinese):
+                token = token.strip()
+                if not token or len(token) < 2:
+                    continue
+                # Index each Chinese word fragment (for substring matching)
+                # Store under the full token for exact match, and also under each character for fuzzy
+                if token not in self.zh_reverse_map:
+                    self.zh_reverse_map[token] = []
+                # Avoid duplicates
+                if not any(e['tibetan'] == entry['tibetan'] for e in self.zh_reverse_map[token]):
+                    self.zh_reverse_map[token].append(entry)
+
+        # Build English reverse index
+        for tibetan, entry in self.en_word_map.items():
+            english = entry.get('english', '')
+            if not english:
+                continue
+            # Split English text into individual words
+            for token in re.split(r'[;；,，.\s]+', english):
+                token = token.strip().lower()
+                if not token or len(token) < 2:
+                    continue
+                if token not in self.en_reverse_map:
+                    self.en_reverse_map[token] = []
+                if not any(e['tibetan'] == entry['tibetan'] for e in self.en_reverse_map[token]):
+                    self.en_reverse_map[token].append(entry)
+
+        self.reverse_loaded = True
+        print(f"  ✓ Reverse index built: {len(self.zh_reverse_map)} Chinese keys, {len(self.en_reverse_map)} English keys")
+
+    def reverse_search(self, query, max_results=50):
+        """Search for Tibetan entries by Chinese or English query.
+        Returns a list of matching entries.
+        """
+        if not self.loaded or not query:
+            return []
+
+        query = query.strip()
+        if not query:
+            return []
+
+        # Ensure reverse index is built
+        if not self.reverse_loaded:
+            self.build_reverse_index()
+
+        results = []
+        seen_tibetan = set()
+
+        def add_entry(entry):
+            nonlocal results, seen_tibetan
+            tib = entry.get('tibetan', '')
+            if tib in seen_tibetan:
+                return
+            seen_tibetan.add(tib)
+            result = {
+                'tibetan': tib,
+                'chinese': entry.get('chinese', ''),
+                'english': entry.get('english', ''),
+                'pos': entry.get('pos', ''),
+                'pos_cn': entry.get('pos_cn', ''),
+                'source': entry.get('source', 'zh'),
+                'match_type': 'reverse',
+            }
+            results.append(result)
+
+        query_lower = query.lower()
+
+        # Search Chinese reverse index
+        for ch_word, entries in self.zh_reverse_map.items():
+            if query in ch_word:
+                for e in entries:
+                    add_entry(e)
+
+        # Search English reverse index
+        for en_word, entries in self.en_reverse_map.items():
+            if query_lower in en_word:
+                for e in entries:
+                    add_entry(e)
+
+        # Sort results: exact match first, then by tibetan length
+        def sort_key(r):
+            tib = r.get('tibetan', '')
+            ch = r.get('chinese', '')
+            en = r.get('english', '')
+            # Exact match on Chinese/English gets highest priority
+            is_exact_zh = (query == ch)
+            is_exact_en = (query_lower == en.lower()) if en else False
+            return (0 if not (is_exact_zh or is_exact_en) else -1, len(tib))
+
+        results.sort(key=sort_key)
+        return results[:max_results]
 
     def lookup(self, word):
         """Look up a single word in both dictionaries.

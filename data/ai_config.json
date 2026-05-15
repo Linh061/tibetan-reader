@@ -1,0 +1,8 @@
+{
+  "api_base": "https://api.deepseek.com",
+  "api_key": "sk-50e37cb7d262490d9953751d37a45975",
+  "model": "deepseek-chat",
+  "system_prompt": "你是一位藏文典籍阅读助手。用户正在阅读藏文《四部医典》等典籍。请用中文回答，简洁准确。对于藏文词汇，请给出中文释义和相关背景知识。",
+  "temperature": 0.3,
+  "max_tokens": 1024
+}

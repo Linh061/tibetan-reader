@@ -7,78 +7,141 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+CJK+TC:wght@400;700&family=Noto+Serif+Tibetan:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/reader.css">
-
 </head>
 <body>
 <div class="reader-container">
     <!-- ===== Top Bar ===== -->
     <div class="reader-topbar">
-        <a href="/" class="back-btn">← 返回</a>
-        <div class="reader-title" id="readerTitle">典籍阅读</div>
-        <div class="reader-controls">
-            <button id="btnTogglePdf" class="btn-primary" title="打开PDF对照面板">📄 对照</button>
-            <button id="btnEdit" class="btn-primary" title="编辑文本 (Ctrl+E)">✏️ 编辑</button>
-            <button id="btnSave" class="btn-primary" style="display:none;background:var(--success);border-color:var(--success);" title="保存修改 (Ctrl+S)">💾 保存</button>
-            <button id="btnCancelEdit" class="btn-primary" style="display:none;background:var(--text-muted);border-color:var(--text-muted);" title="取消编辑">✕ 取消</button>
-            <button id="btnDict" class="btn-primary" title="查词 (Ctrl+D)">📖 查词</button>
-            <button id="btnSearch" class="btn-primary" title="搜索 (Ctrl+F)">🔍 搜索</button>
+        <div class="topbar-left">
+            <a href="/" class="back-btn" title="返回首页">←</a>
+            <div class="reader-title" id="readerTitle">典籍阅读</div>
         </div>
-
-    </div>
-
-    <!-- ===== Dictionary Panel ===== -->
-    <div class="dict-panel" id="dictPanel">
-        <div class="dict-panel-inner">
-            <span style="font-size:0.82rem;color:var(--text-secondary);font-weight:bold;">📖 查词</span>
-            <input type="text" id="dictSearchInput" placeholder="输入藏文单词查询中文释义…" autocomplete="off">
-            <button id="btnDictSearch" class="btn-primary">查词</button>
-            <span class="dict-search-result" id="dictSearchResult"></span>
+        <div class="topbar-right">
+            <button id="btnTogglePdf" class="tb-btn tb-btn-pdf" title="打开PDF对照 (Ctrl+P)">📄 PDF</button>
+            <button id="btnEdit" class="tb-btn" title="编辑文本 (Ctrl+E)">✏️</button>
+            <button id="btnSave" class="tb-btn tb-btn-save" style="display:none;" title="保存修改 (Ctrl+S)">💾</button>
+            <button id="btnCancelEdit" class="tb-btn tb-btn-cancel" style="display:none;" title="取消编辑">✕</button>
+            <button id="btnDict" class="tb-btn" title="查词 (Ctrl+D)">📖</button>
+            <button id="btnSearch" class="tb-btn" title="搜索 (Ctrl+F)">🔍</button>
+            <button id="btnAi" class="tb-btn tb-btn-ai" title="AI 辅助阅读 (Ctrl+I)">🤖 AI</button>
         </div>
     </div>
 
-    <!-- ===== Search Panel ===== -->
-    <div class="search-panel" id="searchPanel">
-        <div class="search-panel-inner">
-            <span style="font-size:0.82rem;color:var(--text-secondary);font-weight:bold;">🔍 搜索</span>
-            <input type="text" id="searchInput" placeholder="输入搜索词…" autocomplete="off">
-            <span class="search-count" id="searchCount"></span>
-            <button id="btnSearchClose" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);">✕ 关闭</button>
-        </div>
-        <div class="search-results" id="searchResults"></div>
-    </div>
+    <!-- ===== Main Layout: TXT | PDF ===== -->
+    <div class="main-layout" id="mainLayout">
+        <!-- Left: TXT Reading Area -->
+        <div class="reading-area" id="readingArea">
+            <!-- Pagination (top) -->
+            <div class="pagination">
+                <button id="btnFirstPage" title="首页">⟪</button>
+                <button id="btnPrevPage" title="上一页 (←)">⟨</button>
+                <span class="page-info">
+                    第 <input type="text" class="page-input" id="pageInput" value="1"> / <span id="totalPages">1</span> 页
+                </span>
+                <button id="btnNextPage" title="下一页 (→)">⟩</button>
+                <button id="btnLastPage" title="末页">⟫</button>
+                <span class="page-progress" id="pageProgress">0%</span>
+            </div>
 
-    <!-- ===== Pagination ===== -->
-    <div class="pagination">
-        <button id="btnFirstPage" title="首页">⟪</button>
-        <button id="btnPrevPage" title="上一页 (←)">⟨</button>
-        <span class="page-info">
-            第 <input type="text" class="page-input" id="pageInput" value="1"> / <span id="totalPages">1</span> 页
-        </span>
-        <button id="btnNextPage" title="下一页 (→)">⟩</button>
-        <button id="btnLastPage" title="末页">⟫</button>
-        <span class="page-progress" id="pageProgress">0%</span>
-    </div>
-
-    <!-- ===== Reading Area ===== -->
-    <div class="reading-area" id="readingArea">
-        <!-- Text Pane -->
-        <div class="text-pane">
+            <!-- Content -->
             <div class="content" id="mainContent">
                 <span class="placeholder">加载中…</span>
             </div>
+
+            <!-- Pagination (bottom) -->
+            <div class="pagination pagination-bottom">
+                <button id="btnFirstPage2" title="首页">⟪</button>
+                <button id="btnPrevPage2" title="上一页 (←)">⟨</button>
+                <span class="page-info">
+                    第 <input type="text" class="page-input" id="pageInput2" value="1"> / <span id="totalPages2">1</span> 页
+                </span>
+                <button id="btnNextPage2" title="下一页 (→)">⟩</button>
+                <button id="btnLastPage2" title="末页">⟫</button>
+                <span class="page-progress" id="pageProgress2">0%</span>
+            </div>
         </div>
 
-        <!-- PDF Pane -->
-        <div class="pdf-pane" id="pdfPane">
+        <!-- Right: PDF Area -->
+        <div class="pdf-area" id="pdfArea">
             <div class="pdf-header">
-                <span class="pdf-label">📄 PDF对照</span>
+                <span class="pdf-header-label">📄 PDF对照</span>
                 <span class="pdf-page-info" id="pdfPageInfo"></span>
-                <button id="btnClosePdf" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);font-size:0.75rem;">✕</button>
+                <button id="btnClosePdf" class="tb-btn" title="关闭PDF">✕</button>
             </div>
             <div class="pdf-viewer" id="pdfViewer">
-                <div class="placeholder">点击「对照」按钮打开PDF</div>
+                <div class="placeholder">点击「📄 PDF」按钮打开对照</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== AI Section (bottom) ===== -->
+    <div class="ai-section" id="aiSection">
+        <div class="ai-section-header">
+            <span class="ai-section-label">🤖 AI 辅助阅读</span>
+            <span class="ai-status" id="aiStatus"></span>
+            <div class="ai-header-actions">
+                <button id="btnAiClear" class="tb-btn" title="清除对话">🗑️ 清除</button>
+                <button id="btnAiSettings" class="tb-btn" title="AI 设置">⚙️ 设置</button>
+                <button id="btnAiClose" class="tb-btn" title="关闭AI">✕</button>
+            </div>
+        </div>
+        <div class="ai-section-body">
+            <div class="ai-context" id="aiContext" style="display:none;">
+                <span class="ai-context-label">选中文本：</span>
+                <span class="ai-context-text" id="aiContextText"></span>
+            </div>
+            <div class="ai-actions">
+                <button id="btnAiExplain" class="tb-btn ai-action-btn" title="解释选中文本">📖 解释</button>
+                <button id="btnAiTranslate" class="tb-btn ai-action-btn" title="翻译选中文本">🌐 翻译</button>
+                <button id="btnAiSummarize" class="tb-btn ai-action-btn" title="总结本页">📝 总结</button>
+            </div>
+            <div class="ai-chat" id="aiChat">
+                <div class="ai-messages" id="aiMessages">
+                    <div class="ai-message ai-message-system">
+                        <div class="ai-msg-content">选择文本后点击「解释」或「翻译」，或在下方输入问题。</div>
+                    </div>
+                </div>
+                <div class="ai-input-row">
+                    <input type="text" id="aiChatInput" placeholder="输入问题…" autocomplete="off">
+                    <button id="btnAiSend" class="tb-btn" title="发送">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Floating Dict Overlay ===== -->
+    <div class="float-overlay" id="dictOverlay" style="display:none;">
+        <div class="float-panel dict-panel">
+            <div class="float-panel-header">
+                <span class="float-panel-label">📖 查词</span>
+                <button id="btnDictClose" class="tb-btn" title="关闭">✕</button>
+            </div>
+            <div class="dict-body">
+                <div class="dict-input-row">
+                    <input type="text" id="dictSearchInput" placeholder="输入藏文单词…" autocomplete="off">
+                    <button id="btnDictSearch" class="tb-btn" title="查词">🔍</button>
+                </div>
+                <div class="dict-search-result" id="dictSearchResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Floating Search Overlay ===== -->
+    <div class="float-overlay" id="searchOverlay" style="display:none;">
+        <div class="float-panel search-panel">
+            <div class="float-panel-header">
+                <span class="float-panel-label">🔍 搜索</span>
+                <button id="btnSearchClose" class="tb-btn" title="关闭">✕</button>
+            </div>
+            <div class="search-body">
+                <div class="search-input-row">
+                    <input type="text" id="searchInput" placeholder="输入搜索词…" autocomplete="off">
+                    <span class="search-count" id="searchCount"></span>
+                </div>
+                <div class="search-results" id="searchResults"></div>
             </div>
         </div>
     </div>

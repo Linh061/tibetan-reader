@@ -101,6 +101,17 @@
         });
     }
 
+    // ===== Helper: detect if input is Chinese or English =====
+    function isChineseOrEnglish(text) {
+        // Check if text contains Chinese characters
+        const chineseRegex = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/;
+        if (chineseRegex.test(text)) return 'zh';
+        // Check if text is ASCII (English)
+        const asciiRegex = /^[a-zA-Z\s]+$/;
+        if (asciiRegex.test(text)) return 'en';
+        return 'tibetan';
+    }
+
     // ===== Dictionary Search =====
     function formatPosTag(r) {
         let pos = r.pos || r.pos_cn || '';
@@ -158,17 +169,52 @@
             return;
         }
         
-        try {
-            const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            const data = await resp.json();
-            
-            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
-                dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
-            } else {
-                dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
+        // Detect input language
+        const lang = isChineseOrEnglish(word);
+        
+        if (lang === 'zh' || lang === 'en') {
+            // Chinese or English input → reverse search
+            try {
+                const resp = await fetch(`/api/dict/reverse-search?q=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.results && data.results.length > 0) {
+                    // Mark results as reverse-search results
+                    const label = lang === 'zh' ? '🔁 中文反查' : '🔁 英文反查';
+                    let html = `<div class="dict-results-count">${label} — 共 ${data.total} 个匹配结果</div>`;
+                    html += '<div class="dict-results-list">';
+                    data.results.forEach((r, i) => {
+                        html += `<div class="dict-result-item" data-index="${i}">
+                            <div class="dict-result-tibetan">${escapeHtml(r.tibetan)}</div>
+                            <div class="dict-result-meanings">
+                                ${formatPosTag(r)}
+                                ${formatSourceTag(r.source)}
+                                ${formatMeaning(r)}
+                            </div>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    dictSearchResult.innerHTML = html;
+                } else {
+                    dictSearchResult.innerHTML = `<div class="dict-no-results">未找到与「${escapeHtml(word)}」相关的藏文词条</div>`;
+                }
+            } catch (e) {
+                dictSearchResult.innerHTML = `<div class="dict-no-results">反查出错</div>`;
             }
-        } catch (e) {
-            dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
+        } else {
+            // Tibetan input → normal lookup
+            try {
+                const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                    dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
+                } else {
+                    dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
+                }
+            } catch (e) {
+                dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
+            }
         }
     }
 
@@ -183,7 +229,102 @@
     dictSearchInput.addEventListener('input', debouncedDictSearch);
 
 
+    // ===== AI Settings =====
+    const aiSettingsModal = $('aiSettingsModal');
+    const aiApiBase = $('aiApiBase');
+    const aiApiKey = $('aiApiKey');
+    const aiModel = $('aiModel');
+    const aiSystemPrompt = $('aiSystemPrompt');
+    const aiTestResult = $('aiTestResult');
+
+    async function loadAiConfig() {
+        try {
+            const resp = await fetch('/api/ai/config');
+            if (!resp.ok) return;
+            const config = await resp.json();
+            aiApiBase.value = config.api_base || '';
+            aiApiKey.value = config.api_key || '';
+            aiModel.value = config.model || '';
+            aiSystemPrompt.value = config.system_prompt || '';
+        } catch (e) {
+            console.error('Failed to load AI config:', e);
+        }
+    }
+
+    function getAiConfigFromForm() {
+        return {
+            api_base: aiApiBase.value.trim(),
+            api_key: aiApiKey.value.trim(),
+            model: aiModel.value.trim(),
+            system_prompt: aiSystemPrompt.value.trim(),
+        };
+    }
+
+    async function testAiConnection() {
+        const config = getAiConfigFromForm();
+        aiTestResult.textContent = '测试中…';
+        aiTestResult.style.color = 'var(--text-muted)';
+        
+        try {
+            const resp = await fetch('/api/ai/test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config),
+            });
+            const data = await resp.json();
+            aiTestResult.textContent = data.message;
+            aiTestResult.style.color = data.success ? 'var(--success)' : 'var(--danger)';
+        } catch (e) {
+            aiTestResult.textContent = '测试失败: ' + e.message;
+            aiTestResult.style.color = 'var(--danger)';
+        }
+    }
+
+    async function saveAiConfig() {
+        const config = getAiConfigFromForm();
+        
+        try {
+            const resp = await fetch('/api/ai/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                aiTestResult.textContent = '✓ 配置已保存';
+                aiTestResult.style.color = 'var(--success)';
+            } else {
+                aiTestResult.textContent = '保存失败';
+                aiTestResult.style.color = 'var(--danger)';
+            }
+        } catch (e) {
+            aiTestResult.textContent = '保存失败: ' + e.message;
+            aiTestResult.style.color = 'var(--danger)';
+        }
+    }
+
+    // AI Settings event listeners
+    $('btnAiSettings').addEventListener('click', () => {
+        aiSettingsModal.style.display = 'flex';
+        loadAiConfig();
+        aiTestResult.textContent = '';
+    });
+
+    $('btnCloseAiSettings').addEventListener('click', () => {
+        aiSettingsModal.style.display = 'none';
+    });
+
+    aiSettingsModal.addEventListener('click', (e) => {
+        if (e.target === aiSettingsModal) {
+            aiSettingsModal.style.display = 'none';
+        }
+    });
+
+    $('btnTestAi').addEventListener('click', testAiConnection);
+    $('btnSaveAi').addEventListener('click', saveAiConfig);
+
     // ===== Init =====
     loadDictionary();
 
 })();
+

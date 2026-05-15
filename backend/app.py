@@ -19,6 +19,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dictionary_service import DictionaryService
 from text_service import TextService
+from ai_service import load_config, save_config, test_connection, chat_completion, explain_text, ai_translate, summarize_page, load_chat_history, save_chat_history, clear_chat_history, list_chat_history_pages
+
+
 
 app = Flask(__name__, 
     static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'static'),
@@ -104,6 +107,22 @@ def dict_lookup():
         return jsonify(response)
     
     return jsonify(response), 404 if not fuzzy_results else 200
+
+
+@app.route('/api/dict/reverse-search')
+def dict_reverse_search():
+    """Reverse search: find Tibetan entries by Chinese or English query."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'error': 'No query provided'}), 400
+    
+    results = dict_service.reverse_search(query, max_results=50)
+    
+    return jsonify({
+        'query': query,
+        'results': results,
+        'total': len(results),
+    })
 
 
 @app.route('/api/dict/fuzzy')
@@ -469,9 +488,217 @@ def text_upload():
         'length': len(content),
     })
 
+# ========== AI API ==========
+
+@app.route('/api/ai/config', methods=['GET', 'POST'])
+def ai_config():
+    """Get or save AI configuration."""
+    if request.method == 'GET':
+        config = load_config()
+        # Mask API key for security
+        safe_config = config.copy()
+        if safe_config['api_key']:
+            safe_config['api_key'] = safe_config['api_key'][:8] + '...' + safe_config['api_key'][-4:]
+        return jsonify(safe_config)
+    
+    # POST: save config
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    config = load_config()
+    # Only update provided fields
+    for key in ['api_base', 'api_key', 'model', 'system_prompt', 'temperature', 'max_tokens']:
+        if key in data:
+            config[key] = data[key]
+    
+    save_config(config)
+    return jsonify({'success': True, 'message': 'AI配置已保存'})
+
+
+@app.route('/api/ai/test', methods=['POST'])
+def ai_test():
+    """Test AI API connection."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    config = load_config()
+    # Use provided values or fall back to saved config
+    test_config = config.copy()
+    for key in ['api_base', 'api_key', 'model']:
+        if key in data:
+            test_config[key] = data[key]
+    
+    success, message = test_connection(test_config)
+    return jsonify({
+        'success': success,
+        'message': message,
+    })
+
+
+@app.route('/api/ai/chat', methods=['POST'])
+def ai_chat():
+    """Send a chat message to AI."""
+    data = request.get_json()
+    if not data or 'message' not in data:
+        return jsonify({'error': 'No message provided'}), 400
+    
+    config = load_config()
+    if not config.get('api_key'):
+        return jsonify({'error': '请先在设置中配置AI API'}), 400
+    
+    # Build conversation history
+    messages = data.get('history', [])
+    messages.append({"role": "user", "content": data['message']})
+    
+    stream = data.get('stream', False)
+    
+    if stream:
+        from flask import Response
+        def generate():
+            result = chat_completion(config, messages, stream=True)
+            if isinstance(result, dict) and 'error' in result:
+                yield f"data: {json.dumps({'error': result['error']})}\n\n"
+                yield "data: [DONE]\n\n"
+            else:
+                for chunk in result:
+                    yield chunk
+        return Response(generate(), mimetype='text/event-stream')
+    
+    result = chat_completion(config, messages, stream=False)
+    return jsonify(result)
+
+
+@app.route('/api/ai/explain', methods=['POST'])
+def ai_explain():
+    """Explain a selected Tibetan text passage."""
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({'error': 'No text provided'}), 400
+    
+    config = load_config()
+    if not config.get('api_key'):
+        return jsonify({'error': '请先在设置中配置AI API'}), 400
+    
+    context = data.get('context', '')
+    result = explain_text(config, data['text'], context)
+    return jsonify(result)
+
+
+@app.route('/api/ai/translate', methods=['POST'])
+def ai_translate_route():
+    """Translate Tibetan text using AI (alternative to Google Translate)."""
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({'error': 'No text provided'}), 400
+    
+    config = load_config()
+    if not config.get('api_key'):
+        return jsonify({'error': '请先在设置中配置AI API'}), 400
+    
+    result = ai_translate(config, data['text'])
+    return jsonify(result)
+
+
+@app.route('/api/ai/summarize', methods=['POST'])
+def ai_summarize():
+    """Summarize the current page content."""
+    data = request.get_json()
+    if not data or 'content' not in data:
+        return jsonify({'error': 'No content provided'}), 400
+    
+    config = load_config()
+    if not config.get('api_key'):
+        return jsonify({'error': '请先在设置中配置AI API'}), 400
+    
+    result = summarize_page(config, data['content'])
+    return jsonify(result)
+
+
+# ========== AI Chat History API ==========
+
+@app.route('/api/ai/history', methods=['GET'])
+def ai_history_get():
+    """Get chat history for a specific collection page."""
+    collection_id = request.args.get('collection', '')
+    page = request.args.get('page', 1, type=int)
+    
+    if not collection_id:
+        return jsonify({'error': 'No collection provided'}), 400
+    
+    history = load_chat_history(collection_id, page)
+    return jsonify({
+        'collection': collection_id,
+        'page': page,
+        'history': history,
+        'count': len(history),
+    })
+
+
+@app.route('/api/ai/history/save', methods=['POST'])
+def ai_history_save():
+    """Save chat history for a specific collection page."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    collection_id = data.get('collection', '')
+    page = data.get('page', 1)
+    messages = data.get('messages', [])
+    
+    if not collection_id:
+        return jsonify({'error': 'No collection provided'}), 400
+    
+    save_chat_history(collection_id, page, messages)
+    return jsonify({
+        'success': True,
+        'message': f'对话历史已保存（第{page}页）',
+        'count': len(messages),
+    })
+
+
+@app.route('/api/ai/history/clear', methods=['POST'])
+def ai_history_clear():
+    """Clear chat history for a specific collection page."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    collection_id = data.get('collection', '')
+    page = data.get('page', 1)
+    
+    if not collection_id:
+        return jsonify({'error': 'No collection provided'}), 400
+    
+    cleared = clear_chat_history(collection_id, page)
+    return jsonify({
+        'success': cleared,
+        'message': '对话历史已清除' if cleared else '没有历史记录',
+    })
+
+
+@app.route('/api/ai/history/pages', methods=['GET'])
+def ai_history_pages():
+    """List all pages that have chat history for a collection."""
+    collection_id = request.args.get('collection', '')
+    
+    if not collection_id:
+        return jsonify({'error': 'No collection provided'}), 400
+    
+    pages = list_chat_history_pages(collection_id)
+    return jsonify({
+        'collection': collection_id,
+        'pages': pages,
+        'count': len(pages),
+    })
+
+
 # ========== Error Handlers ==========
 
+
 @app.errorhandler(404)
+
 def not_found(e):
     return jsonify({'error': 'Not found'}), 404
 

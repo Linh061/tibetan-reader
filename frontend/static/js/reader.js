@@ -1,7 +1,8 @@
 /**
  * Tibetan Reader - Reading Page
- * Full-width reading with optional PDF sidebar, dictionary lookup, search.
- * Features: editable text, selection-based translation, PDF sync.
+ * TXT | PDF 1:1 layout + bottom AI section + floating dict/search overlays.
+ * Features: editable text, selection-based translation, PDF sync,
+ * AI chat with persistent history per page.
  */
 (function() {
     'use strict';
@@ -22,27 +23,51 @@
         pdfLoading: false,
         editMode: false,
         originalContent: '',
+        // AI chat
+        aiChatHistory: [],
+        aiSelectedText: '',
+        aiOpen: false,
     };
 
     // ===== DOM References =====
     const $ = (id) => document.getElementById(id);
     const mainContent = $('mainContent');
     const pageInput = $('pageInput');
+    const pageInput2 = $('pageInput2');
     const totalPagesEl = $('totalPages');
+    const totalPagesEl2 = $('totalPages2');
     const statusMsg = $('statusMsg');
     const readerTitle = $('readerTitle');
     const pageProgress = $('pageProgress');
-    const searchPanel = $('searchPanel');
+    const pageProgress2 = $('pageProgress2');
+    const readingArea = $('readingArea');
+    const mainLayout = $('mainLayout');
+
+    // PDF
+    const pdfArea = $('pdfArea');
+    const pdfViewer = $('pdfViewer');
+    const pdfPageInfo = $('pdfPageInfo');
+
+    // Dict overlay
+    const dictOverlay = $('dictOverlay');
+    const dictSearchInput = $('dictSearchInput');
+    const dictSearchResult = $('dictSearchResult');
+
+    // Search overlay
+    const searchOverlay = $('searchOverlay');
     const searchInput = $('searchInput');
     const searchCount = $('searchCount');
     const searchResults = $('searchResults');
-    const dictPanel = $('dictPanel');
-    const dictSearchInput = $('dictSearchInput');
-    const dictSearchResult = $('dictSearchResult');
-    const readingArea = $('readingArea');
-    const pdfPane = $('pdfPane');
-    const pdfViewer = $('pdfViewer');
-    const pdfPageInfo = $('pdfPageInfo');
+
+    // AI section
+    const aiSection = $('aiSection');
+    const aiContextText = $('aiContextText');
+    const aiContext = $('aiContext');
+    const aiMessages = $('aiMessages');
+    const aiChatInput = $('aiChatInput');
+    const aiStatus = $('aiStatus');
+
+    // Buttons
     const btnEdit = $('btnEdit');
     const btnSave = $('btnSave');
     const btnCancelEdit = $('btnCancelEdit');
@@ -119,8 +144,9 @@
             // Update progress
             const pct = Math.round((data.page / data.total_pages) * 100);
             pageProgress.textContent = `${pct}%`;
+            pageProgress2.textContent = `${pct}%`;
             
-            // Sync PDF immediately if open (no delay)
+            // Sync PDF immediately if open
             if (state.pdfOpen) {
                 syncPdfWithPage(data.page, data.page_mapping);
             }
@@ -139,11 +165,9 @@
         }
         
         if (state.editMode) {
-            // Editable mode: use contenteditable div
             mainContent.innerHTML = `<div class="editable-content" contenteditable="true">${escapeHtml(text)}</div>`;
             mainContent.querySelector('.editable-content').focus();
         } else {
-            // Read mode: render as lines
             const lines = text.split('\n');
             let html = '';
             lines.forEach((line, i) => {
@@ -157,7 +181,6 @@
             
             mainContent.innerHTML = html;
             
-            // Add handlers for word lookup
             mainContent.querySelectorAll('.text-line').forEach(el => {
                 el.addEventListener('mouseup', handleTextSelection);
                 el.addEventListener('dblclick', handleTextSelection);
@@ -168,20 +191,29 @@
     // ===== Pagination =====
     function updatePagination() {
         pageInput.value = state.currentPage;
+        pageInput2.value = state.currentPage;
         totalPagesEl.textContent = state.totalPages;
+        totalPagesEl2.textContent = state.totalPages;
     }
 
     async function goToPage(page) {
         page = Math.max(1, Math.min(page, state.totalPages));
         if (page === state.currentPage) return;
+        
+        // Save AI chat history before navigating
+        await saveAiChatHistory();
+        
         // Exit edit mode when navigating
         if (state.editMode) {
             exitEditMode();
         }
         await loadPage(page);
+        
+        // Load AI chat history for new page
+        await loadAiChatHistory();
     }
 
-    // ===== Text Selection Handler (Translation Popup) =====
+    // ===== Text Selection Handler =====
     let selectionTimeout = null;
 
     function handleTextSelection(e) {
@@ -189,16 +221,14 @@
         selectionTimeout = setTimeout(() => {
             const selection = window.getSelection();
             const selectedText = selection.toString().trim();
-            
             if (selectedText) {
                 lookupSelectedWord(selectedText);
             }
         }, 300);
     }
 
-    // Listen for selection changes (for "勾选" / selection-based translation)
     document.addEventListener('selectionchange', debounce(() => {
-        if (state.editMode) return; // Don't trigger in edit mode
+        if (state.editMode) return;
         
         const selection = window.getSelection();
         const selectedText = selection.toString().trim();
@@ -212,27 +242,44 @@
     }, 200));
 
     async function lookupSelectedWord(word) {
-        // Try dictionary first
-        try {
-            const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            const data = await resp.json();
-            
-            if (data.exact_match) {
-                showDictPopup(data.exact_match);
-                return;
+        // Detect if selected text is Chinese or English
+        const lang = isChineseOrEnglish(word);
+        
+        if (lang === 'zh' || lang === 'en') {
+            // Chinese/English selection → reverse search
+            try {
+                const resp = await fetch(`/api/dict/reverse-search?q=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.results && data.results.length > 0) {
+                    // Show first result as popup
+                    showDictPopup(data.results[0]);
+                    return;
+                }
+            } catch (e) {
+                // Fall through
             }
-            
-            // If no exact match but fuzzy results exist, show top result
-            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
-                showDictPopup(data.fuzzy_results[0]);
-                return;
+        } else {
+            // Tibetan selection → normal lookup
+            try {
+                const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.exact_match) {
+                    showDictPopup(data.exact_match);
+                    return;
+                }
+                
+                if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                    showDictPopup(data.fuzzy_results[0]);
+                    return;
+                }
+            } catch (e) {
+                // Fall through
             }
-        } catch (e) {
-            // Fall through
         }
 
-        
-        // Try Google Translate
+        // Fallback: try Google Translate
         try {
             const resp = await fetch('/api/translate', {
                 method: 'POST',
@@ -278,7 +325,10 @@
     function showDictPopup(entry) {
         const popup = document.createElement('div');
         popup.className = 'dict-popup';
+        // Add a label for reverse search results
+        const reverseLabel = entry.match_type === 'reverse' ? '<div class="dict-popup-label">🔁 反查结果</div>' : '';
         popup.innerHTML = `
+            ${reverseLabel}
             <div class="dict-popup-tibetan">${escapeHtml(entry.tibetan)}</div>
             <div class="dict-popup-meanings">
                 ${formatPosTag(entry)}
@@ -340,14 +390,12 @@
         }, 100);
     }
 
-
     // ===== Edit Mode =====
     function enterEditMode() {
         state.editMode = true;
         btnEdit.style.display = 'none';
         btnSave.style.display = 'inline-block';
         btnCancelEdit.style.display = 'inline-block';
-        // Re-render in editable mode
         renderContent(state.originalContent);
         showSuccess('编辑模式 - 可直接修改文本内容');
     }
@@ -357,7 +405,6 @@
         btnEdit.style.display = 'inline-block';
         btnSave.style.display = 'none';
         btnCancelEdit.style.display = 'none';
-        // Re-render in read mode
         loadPage(state.currentPage);
     }
 
@@ -365,7 +412,6 @@
         const editableDiv = mainContent.querySelector('.editable-content');
         if (!editableDiv) return;
         
-        // Get text content (preserve line breaks)
         const content = editableDiv.innerText;
         
         try {
@@ -389,6 +435,26 @@
             }
         } catch (e) {
             showError('保存失败: ' + e.message);
+        }
+    }
+
+    // ===== PDF Toggle (1:1 layout) =====
+    function togglePdf() {
+        state.pdfOpen = !state.pdfOpen;
+        const btn = $('btnTogglePdf');
+        
+        if (state.pdfOpen) {
+            pdfArea.classList.add('visible');
+            mainLayout.classList.add('pdf-open');
+            btn.title = '关闭PDF对照';
+            btn.textContent = '📄 PDF';
+            loadPage(state.currentPage);
+        } else {
+            pdfArea.classList.remove('visible');
+            mainLayout.classList.remove('pdf-open');
+            btn.title = '打开PDF对照 (Ctrl+P)';
+            btn.textContent = '📄 PDF';
+            pdfViewer.innerHTML = '';
         }
     }
 
@@ -424,7 +490,6 @@
             
             const testResp = await fetch(imgUrl);
             if (!testResp.ok) {
-                const errText = await testResp.text();
                 pdfViewer.innerHTML = `<div class="placeholder">⚠ 无法加载PDF页面 (${groupName} 第${pageNum}页)</div>`;
                 return;
             }
@@ -435,28 +500,16 @@
         }
     }
 
-    // ===== Toggle PDF =====
-    function togglePdf() {
-        state.pdfOpen = !state.pdfOpen;
-        const btn = $('btnTogglePdf');
-        
-        if (state.pdfOpen) {
-            readingArea.classList.add('pdf-open');
-            btn.textContent = '📄 文本';
-            btn.title = '切换到纯文本模式';
-            // Load PDF immediately (no delay)
-            syncPdfWithPage(state.currentPage, null);
-            // Re-fetch page data to get page_mapping and sync PDF
-            loadPage(state.currentPage);
-        } else {
-            readingArea.classList.remove('pdf-open');
-            btn.textContent = '📄 对照';
-            btn.title = '打开PDF对照面板';
-            pdfViewer.innerHTML = '';
-        }
+    // ===== Floating Dict Overlay =====
+    function showDictOverlay() {
+        dictOverlay.style.display = 'flex';
+        setTimeout(() => dictSearchInput.focus(), 100);
     }
 
-    // ===== Dictionary Search =====
+    function hideDictOverlay() {
+        dictOverlay.style.display = 'none';
+    }
+
     function renderDictResults(results, exactMatch) {
         if (!results || results.length === 0) {
             return '<div class="dict-no-results">未找到匹配词条</div>';
@@ -482,6 +535,15 @@
         return html;
     }
 
+    // ===== Helper: detect if input is Chinese or English =====
+    function isChineseOrEnglish(text) {
+        const chineseRegex = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/;
+        if (chineseRegex.test(text)) return 'zh';
+        const asciiRegex = /^[a-zA-Z\s]+$/;
+        if (asciiRegex.test(text)) return 'en';
+        return 'tibetan';
+    }
+
     async function dictSearch() {
         const word = dictSearchInput.value.trim();
         if (!word) {
@@ -489,26 +551,69 @@
             return;
         }
         
-        try {
-            const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
-            const data = await resp.json();
-            
-            if (data.fuzzy_results && data.fuzzy_results.length > 0) {
-                dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
-            } else {
-                dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
+        // Detect input language
+        const lang = isChineseOrEnglish(word);
+        
+        if (lang === 'zh' || lang === 'en') {
+            // Chinese or English input → reverse search
+            try {
+                const resp = await fetch(`/api/dict/reverse-search?q=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.results && data.results.length > 0) {
+                    const label = lang === 'zh' ? '🔁 中文反查' : '🔁 英文反查';
+                    let html = `<div class="dict-results-count">${label} — 共 ${data.total} 个匹配结果</div>`;
+                    html += '<div class="dict-results-list">';
+                    data.results.forEach((r, i) => {
+                        html += `<div class="dict-result-item" data-index="${i}">
+                            <div class="dict-result-tibetan">${escapeHtml(r.tibetan)}</div>
+                            <div class="dict-result-meanings">
+                                ${formatPosTag(r)}
+                                ${formatSourceTag(r.source)}
+                                ${formatMeaning(r)}
+                            </div>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    dictSearchResult.innerHTML = html;
+                } else {
+                    dictSearchResult.innerHTML = `<div class="dict-no-results">未找到与「${escapeHtml(word)}」相关的藏文词条</div>`;
+                }
+            } catch (e) {
+                dictSearchResult.innerHTML = `<div class="dict-no-results">反查出错</div>`;
             }
-        } catch (e) {
-            dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
+        } else {
+            // Tibetan input → normal lookup
+            try {
+                const resp = await fetch(`/api/dict/lookup?word=${encodeURIComponent(word)}`);
+                const data = await resp.json();
+                
+                if (data.fuzzy_results && data.fuzzy_results.length > 0) {
+                    dictSearchResult.innerHTML = renderDictResults(data.fuzzy_results, data.exact_match);
+                } else {
+                    dictSearchResult.innerHTML = `<div class="dict-no-results">未找到: ${escapeHtml(word)}</div>`;
+                }
+            } catch (e) {
+                dictSearchResult.innerHTML = `<div class="dict-no-results">查询出错</div>`;
+            }
         }
     }
 
-    // Debounced search as user types
     const debouncedDictSearch = debounce(dictSearch, 200);
 
+    // ===== Floating Search Overlay =====
+    function showSearchOverlay() {
+        searchOverlay.style.display = 'flex';
+        setTimeout(() => searchInput.focus(), 100);
+    }
 
+    function hideSearchOverlay() {
+        searchOverlay.style.display = 'none';
+        searchInput.value = '';
+        searchResults.innerHTML = '';
+        searchCount.textContent = '';
+    }
 
-    // ===== Search =====
     async function performSearch() {
         const query = searchInput.value.trim();
         if (!query) return;
@@ -551,7 +656,7 @@
                     const result = data.results[idx];
                     if (result) {
                         goToPage(result.page);
-                        searchPanel.classList.remove('visible');
+                        hideSearchOverlay();
                     }
                 });
             });
@@ -560,9 +665,218 @@
         }
     }
 
+    // ===== AI Chat (bottom section) =====
+    function getSelectedText() {
+        const selection = window.getSelection();
+        return selection.toString().trim();
+    }
+
+    function updateAiContext(text) {
+        state.aiSelectedText = text;
+        if (text) {
+            aiContextText.textContent = text;
+            aiContext.style.display = 'flex';
+        } else {
+            aiContextText.textContent = '';
+            aiContext.style.display = 'none';
+        }
+    }
+
+    function addAiMessage(role, content) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `ai-message ai-message-${role}`;
+        msgDiv.innerHTML = `<div class="ai-msg-content">${escapeHtml(content)}</div>`;
+        aiMessages.appendChild(msgDiv);
+        aiMessages.scrollTop = aiMessages.scrollHeight;
+    }
+
+    function addAiLoadingMessage() {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'ai-message ai-message-assistant ai-msg-loading';
+        msgDiv.id = 'aiLoadingMsg';
+        msgDiv.innerHTML = '<div class="ai-msg-content">思考中…</div>';
+        aiMessages.appendChild(msgDiv);
+        aiMessages.scrollTop = aiMessages.scrollHeight;
+    }
+
+    function removeAiLoadingMessage() {
+        const loading = document.getElementById('aiLoadingMsg');
+        if (loading) loading.remove();
+    }
+
+    function updateAiStatus(msg, isError) {
+        aiStatus.textContent = msg;
+        aiStatus.style.color = isError ? 'var(--danger)' : 'var(--text-muted)';
+        if (msg) {
+            setTimeout(() => { aiStatus.textContent = ''; }, 5000);
+        }
+    }
+
+    function toggleAiSection() {
+        state.aiOpen = !state.aiOpen;
+        if (state.aiOpen) {
+            aiSection.classList.add('visible');
+            const text = getSelectedText();
+            if (text) {
+                updateAiContext(text);
+            }
+            setTimeout(() => aiChatInput.focus(), 100);
+        } else {
+            aiSection.classList.remove('visible');
+        }
+    }
+
+    async function loadAiChatHistory() {
+        if (!state.currentCollection) return;
+        
+        try {
+            const resp = await fetch(`/api/ai/history?collection=${encodeURIComponent(state.currentCollection)}&page=${state.currentPage}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            
+            // Clear current messages
+            aiMessages.innerHTML = '';
+            state.aiChatHistory = data.history || [];
+            
+            // Re-render messages
+            if (state.aiChatHistory.length === 0) {
+                addAiMessage('system', '选择文本后点击「解释」或「翻译」，或在下方输入问题。');
+            } else {
+                state.aiChatHistory.forEach(msg => {
+                    addAiMessage(msg.role, msg.content);
+                });
+            }
+        } catch (e) {
+            console.error('Failed to load AI chat history:', e);
+        }
+    }
+
+    async function saveAiChatHistory() {
+        if (!state.currentCollection || state.aiChatHistory.length === 0) return;
+        
+        try {
+            await fetch('/api/ai/history/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    collection: state.currentCollection,
+                    page: state.currentPage,
+                    messages: state.aiChatHistory,
+                }),
+            });
+        } catch (e) {
+            console.error('Failed to save AI chat history:', e);
+        }
+    }
+
+    async function clearAiChatHistory() {
+        if (!state.currentCollection) return;
+        
+        try {
+            await fetch('/api/ai/history/clear', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    collection: state.currentCollection,
+                    page: state.currentPage,
+                }),
+            });
+        } catch (e) {
+            console.error('Failed to clear AI chat history:', e);
+        }
+        
+        state.aiChatHistory = [];
+        aiMessages.innerHTML = '';
+        addAiMessage('system', '对话已清除。选择文本后点击「解释」或「翻译」，或在下方输入问题。');
+        updateAiStatus('对话已清除', false);
+    }
+
+    async function sendAiMessage(message, showLoading = true) {
+        if (!message.trim()) return;
+        
+        addAiMessage('user', message);
+        state.aiChatHistory.push({role: 'user', content: message});
+        
+        if (showLoading) {
+            addAiLoadingMessage();
+        }
+        
+        try {
+            const resp = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    message: message,
+                    history: state.aiChatHistory.slice(-10),
+                    stream: false,
+                }),
+            });
+            
+            removeAiLoadingMessage();
+            
+            if (!resp.ok) {
+                const err = await resp.json();
+                addAiMessage('error', err.error || '请求失败');
+                return;
+            }
+            
+            const data = await resp.json();
+            if (data.error) {
+                addAiMessage('error', data.error);
+                return;
+            }
+            
+            addAiMessage('assistant', data.content);
+            state.aiChatHistory.push({role: 'assistant', content: data.content});
+            
+            // Auto-save after each exchange
+            await saveAiChatHistory();
+            
+        } catch (e) {
+            removeAiLoadingMessage();
+            addAiMessage('error', '网络错误: ' + e.message);
+        }
+    }
+
+    async function handleAiExplain() {
+        const text = state.aiSelectedText || getSelectedText();
+        if (!text) {
+            updateAiStatus('请先选择文本', true);
+            return;
+        }
+        updateAiContext(text);
+        await sendAiMessage(`请解释以下藏文文本的含义：\n\n${text}\n\n请给出：1) 字面翻译 2) 关键术语解释 3) 医学/文化背景（如适用）`);
+    }
+
+    async function handleAiTranslate() {
+        const text = state.aiSelectedText || getSelectedText();
+        if (!text) {
+            updateAiStatus('请先选择文本', true);
+            return;
+        }
+        updateAiContext(text);
+        await sendAiMessage(`请将以下藏文翻译为中文：\n\n${text}\n\n直接给出翻译结果。`);
+    }
+
+    async function handleAiSummarize() {
+        const content = state.originalContent;
+        if (!content || content.trim() === '') {
+            updateAiStatus('当前页面无内容', true);
+            return;
+        }
+        await sendAiMessage(`请总结以下藏文典籍页面的主要内容（用中文）：\n\n${content.slice(0, 2000)}`);
+    }
+
+    async function handleAiSend() {
+        const message = aiChatInput.value.trim();
+        if (!message) return;
+        aiChatInput.value = '';
+        await sendAiMessage(message);
+    }
+
     // ===== Event Listeners =====
-    
-    // Pagination
+
+    // Pagination (top)
     $('btnFirstPage').addEventListener('click', () => goToPage(1));
     $('btnPrevPage').addEventListener('click', () => goToPage(state.currentPage - 1));
     $('btnNextPage').addEventListener('click', () => goToPage(state.currentPage + 1));
@@ -575,7 +889,20 @@
         }
     });
 
-    // PDF toggle
+    // Pagination (bottom)
+    $('btnFirstPage2').addEventListener('click', () => goToPage(1));
+    $('btnPrevPage2').addEventListener('click', () => goToPage(state.currentPage - 1));
+    $('btnNextPage2').addEventListener('click', () => goToPage(state.currentPage + 1));
+    $('btnLastPage2').addEventListener('click', () => goToPage(state.totalPages));
+    
+    pageInput2.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const page = parseInt(pageInput2.value);
+            if (!isNaN(page)) goToPage(page);
+        }
+    });
+
+    // PDF toggle (1:1 layout)
     $('btnTogglePdf').addEventListener('click', togglePdf);
     $('btnClosePdf').addEventListener('click', togglePdf);
 
@@ -584,54 +911,108 @@
     btnSave.addEventListener('click', saveEdits);
     btnCancelEdit.addEventListener('click', exitEditMode);
 
-    // Dictionary
+    // Dictionary (floating overlay)
     $('btnDict').addEventListener('click', () => {
-        dictPanel.classList.toggle('visible');
-        if (dictPanel.classList.contains('visible')) {
-            dictSearchInput.focus();
+        if (dictOverlay.style.display === 'flex') {
+            hideDictOverlay();
+        } else {
+            showDictOverlay();
         }
     });
+    $('btnDictClose').addEventListener('click', hideDictOverlay);
     $('btnDictSearch').addEventListener('click', dictSearch);
     dictSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') dictSearch();
     });
     dictSearchInput.addEventListener('input', debouncedDictSearch);
+    // Close overlay on backdrop click
+    dictOverlay.addEventListener('click', (e) => {
+        if (e.target === dictOverlay) hideDictOverlay();
+    });
 
-
-    // Search
+    // Search (floating overlay)
     $('btnSearch').addEventListener('click', () => {
-        searchPanel.classList.toggle('visible');
-        if (searchPanel.classList.contains('visible')) {
-            searchInput.focus();
+        if (searchOverlay.style.display === 'flex') {
+            hideSearchOverlay();
+        } else {
+            showSearchOverlay();
         }
     });
-    $('btnSearchClose').addEventListener('click', () => {
-        searchPanel.classList.remove('visible');
-        searchInput.value = '';
-        searchResults.innerHTML = '';
-        searchCount.textContent = '';
-    });
+    $('btnSearchClose').addEventListener('click', hideSearchOverlay);
     searchInput.addEventListener('input', debounce(performSearch, 300));
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') performSearch();
     });
+    // Close overlay on backdrop click
+    searchOverlay.addEventListener('click', (e) => {
+        if (e.target === searchOverlay) hideSearchOverlay();
+    });
+
+    // AI Section (bottom)
+    $('btnAi').addEventListener('click', toggleAiSection);
+    $('btnAiClose').addEventListener('click', toggleAiSection);
+    $('btnAiClear').addEventListener('click', clearAiChatHistory);
+
+    $('btnAiSettings').addEventListener('click', () => {
+        window.open('/', '_blank');
+        updateAiStatus('请在首页设置 AI 配置', false);
+    });
+
+    $('btnAiExplain').addEventListener('click', handleAiExplain);
+    $('btnAiTranslate').addEventListener('click', handleAiTranslate);
+    $('btnAiSummarize').addEventListener('click', handleAiSummarize);
+    $('btnAiSend').addEventListener('click', handleAiSend);
+
+    aiChatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAiSend();
+        }
+    });
+
+    // Listen for text selection to update AI context
+    document.addEventListener('selectionchange', debounce(() => {
+        if (state.editMode) return;
+        if (!state.aiOpen) return;
+        
+        const text = getSelectedText();
+        if (text) {
+            updateAiContext(text);
+        }
+    }, 300));
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'f') {
             e.preventDefault();
-            searchPanel.classList.toggle('visible');
-            if (searchPanel.classList.contains('visible')) searchInput.focus();
+            if (searchOverlay.style.display === 'flex') {
+                hideSearchOverlay();
+            } else {
+                showSearchOverlay();
+            }
+        }
+        if (e.ctrlKey && e.key === 'd') {
+            e.preventDefault();
+            if (dictOverlay.style.display === 'flex') {
+                hideDictOverlay();
+            } else {
+                showDictOverlay();
+            }
+        }
+        if (e.ctrlKey && e.key === 'i') {
+            e.preventDefault();
+            toggleAiSection();
+        }
+        if (e.ctrlKey && e.key === 'p') {
+            e.preventDefault();
+            togglePdf();
         }
         if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
-            if (searchPanel.classList.contains('visible')) return;
             goToPage(state.currentPage - 1);
         }
         if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
-            if (searchPanel.classList.contains('visible')) return;
             goToPage(state.currentPage + 1);
         }
-        // Ctrl+E to toggle edit mode
         if (e.ctrlKey && e.key === 'e') {
             e.preventDefault();
             if (state.editMode) {
@@ -640,7 +1021,6 @@
                 enterEditMode();
             }
         }
-        // Ctrl+S to save in edit mode
         if (e.ctrlKey && e.key === 's' && state.editMode) {
             e.preventDefault();
             saveEdits();
@@ -654,6 +1034,8 @@
         if (coll) {
             showSuccess(`已加载「${coll.title_cn}」`);
             await loadPage(1);
+            // Load AI chat history for page 1
+            await loadAiChatHistory();
         } else {
             showError('无法加载典籍信息');
         }
