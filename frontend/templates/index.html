@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="bo, zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>藏文阅读器 · བོད་ཡིག་ཀློག་པ།</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+CJK+TC:wght@400;700&family=Noto+Serif+Tibetan:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+<body>
+<div class="container">
+    <!-- ===== Header ===== -->
+    <div class="header">
+        <h1>བོད་ཡིག་ཀློག་པ།</h1>
+        <div class="subtitle">✦ 典籍浏览 · 词典查词 · 藏汉对照 ✦</div>
+    </div>
+
+    <!-- ===== Collection Selector ===== -->
+    <div class="collection-selector" id="collectionSelector">
+        <div class="collection-label">📜 典籍选择</div>
+        <div class="collection-cards" id="collectionCards">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
+    <!-- ===== Dictionary search bar ===== -->
+    <div class="dict-search-bar">
+        <span class="dict-search-label">🔎 查词</span>
+        <input type="text" id="dictSearchInput" placeholder="输入藏文单词查询中文释义…" autocomplete="off">
+        <button id="btnDictSearch" class="btn-primary">查词</button>
+        <span class="dict-search-result" id="dictSearchResult"></span>
+    </div>
+
+    <!-- ===== Status bar ===== -->
+    <div class="status" id="statusMsg">
+        <span class="spinner"></span> 加载词典 <strong>Tibetan-Chinese_dictionary.json</strong> …
+    </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

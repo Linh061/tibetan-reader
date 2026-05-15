@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="bo, zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阅读 · 藏文阅读器</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+CJK+TC:wght@400;700&family=Noto+Serif+Tibetan:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/reader.css">
+
+</head>
+<body>
+<div class="reader-container">
+    <!-- ===== Top Bar ===== -->
+    <div class="reader-topbar">
+        <a href="/" class="back-btn">← 返回</a>
+        <div class="reader-title" id="readerTitle">典籍阅读</div>
+        <div class="reader-controls">
+            <button id="btnTogglePdf" class="btn-primary" title="打开PDF对照面板">📄 对照</button>
+            <button id="btnEdit" class="btn-primary" title="编辑文本 (Ctrl+E)">✏️ 编辑</button>
+            <button id="btnSave" class="btn-primary" style="display:none;background:var(--success);border-color:var(--success);" title="保存修改 (Ctrl+S)">💾 保存</button>
+            <button id="btnCancelEdit" class="btn-primary" style="display:none;background:var(--text-muted);border-color:var(--text-muted);" title="取消编辑">✕ 取消</button>
+            <button id="btnDict" class="btn-primary" title="查词 (Ctrl+D)">📖 查词</button>
+            <button id="btnSearch" class="btn-primary" title="搜索 (Ctrl+F)">🔍 搜索</button>
+        </div>
+
+    </div>
+
+    <!-- ===== Dictionary Panel ===== -->
+    <div class="dict-panel" id="dictPanel">
+        <div class="dict-panel-inner">
+            <span style="font-size:0.82rem;color:var(--text-secondary);font-weight:bold;">📖 查词</span>
+            <input type="text" id="dictSearchInput" placeholder="输入藏文单词查询中文释义…" autocomplete="off">
+            <button id="btnDictSearch" class="btn-primary">查词</button>
+            <span class="dict-search-result" id="dictSearchResult"></span>
+        </div>
+    </div>
+
+    <!-- ===== Search Panel ===== -->
+    <div class="search-panel" id="searchPanel">
+        <div class="search-panel-inner">
+            <span style="font-size:0.82rem;color:var(--text-secondary);font-weight:bold;">🔍 搜索</span>
+            <input type="text" id="searchInput" placeholder="输入搜索词…" autocomplete="off">
+            <span class="search-count" id="searchCount"></span>
+            <button id="btnSearchClose" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);">✕ 关闭</button>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <!-- ===== Pagination ===== -->
+    <div class="pagination">
+        <button id="btnFirstPage" title="首页">⟪</button>
+        <button id="btnPrevPage" title="上一页 (←)">⟨</button>
+        <span class="page-info">
+            第 <input type="text" class="page-input" id="pageInput" value="1"> / <span id="totalPages">1</span> 页
+        </span>
+        <button id="btnNextPage" title="下一页 (→)">⟩</button>
+        <button id="btnLastPage" title="末页">⟫</button>
+        <span class="page-progress" id="pageProgress">0%</span>
+    </div>
+
+    <!-- ===== Reading Area ===== -->
+    <div class="reading-area" id="readingArea">
+        <!-- Text Pane -->
+        <div class="text-pane">
+            <div class="content" id="mainContent">
+                <span class="placeholder">加载中…</span>
+            </div>
+        </div>
+
+        <!-- PDF Pane -->
+        <div class="pdf-pane" id="pdfPane">
+            <div class="pdf-header">
+                <span class="pdf-label">📄 PDF对照</span>
+                <span class="pdf-page-info" id="pdfPageInfo"></span>
+                <button id="btnClosePdf" class="btn-primary" style="background:var(--text-muted);border-color:var(--text-muted);font-size:0.75rem;">✕</button>
+            </div>
+            <div class="pdf-viewer" id="pdfViewer">
+                <div class="placeholder">点击「对照」按钮打开PDF</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Status Bar ===== -->
+    <div class="status" id="statusMsg">
+        <span class="spinner"></span> 加载中…
+    </div>
+</div>
+
+<script src="/static/js/reader.js"></script>
+</body>
+</html>

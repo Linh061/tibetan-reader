@@ -1,0 +1,498 @@
+/* ============================================
+   Tibetan Reader - Reading Page Styles
+   Full-width reading with optional PDF sidebar
+   ============================================ */
+
+/* ---- Reader Container ---- */
+
+.reader-container {
+    max-width: 100%;
+    width: 100%;
+    min-height: 100vh;
+    background: var(--bg-container);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Top Bar ---- */
+
+.reader-topbar {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1.2rem;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-medium);
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.back-btn {
+    text-decoration: none;
+    color: var(--accent);
+    font-size: 0.85rem;
+    padding: 4px 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: 20px;
+    background: var(--bg-content);
+    transition: all 0.15s;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+}
+
+
+.back-btn:hover {
+    background: var(--accent-bg-hover);
+    border-color: var(--accent);
+}
+
+.reader-title {
+    font-size: 1rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.08em;
+    font-family: var(--font-body);
+}
+
+
+.reader-controls {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* ---- Dictionary Panel (slide-down) ---- */
+
+.dict-panel {
+    display: none;
+    background: var(--accent-bg);
+    border-bottom: 1px solid var(--border-medium);
+    padding: 0.4rem 1.2rem;
+}
+
+.dict-panel.visible {
+    display: block;
+}
+
+.dict-panel-inner {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.dict-panel-inner input {
+    flex: 1;
+    min-width: 150px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--text-primary);
+    font-family: var(--font-tibetan);
+}
+
+.dict-panel-inner input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(184, 124, 74, 0.2);
+}
+
+.dict-search-result {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+}
+
+.dict-search-result .found {
+    color: var(--success);
+    font-weight: bold;
+}
+
+.dict-search-result .not-found {
+    color: var(--danger);
+    font-style: italic;
+}
+
+/* ---- Search Panel (slide-down) ---- */
+
+.search-panel {
+    display: none;
+    background: var(--bg-content);
+    border-bottom: 1px solid var(--border-medium);
+}
+
+.search-panel.visible {
+    display: block;
+}
+
+.search-panel-inner {
+    display: flex;
+    gap: 8px;
+    padding: 0.4rem 1.2rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-panel-inner input {
+    flex: 1;
+    min-width: 150px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--text-primary);
+    font-family: var(--font-tibetan);
+}
+
+.search-panel-inner input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(184, 124, 74, 0.2);
+}
+
+.search-count {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border-light);
+}
+
+.search-result-item {
+    padding: 6px 1.2rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.search-result-item:hover {
+    background: var(--accent-bg-hover);
+}
+
+.search-result-item .match-highlight {
+    color: var(--danger);
+    font-weight: bold;
+}
+
+.search-result-item .result-line {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.search-result-item .result-context {
+    font-family: var(--font-tibetan);
+    font-size: 0.9rem;
+}
+
+.search-no-results {
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ---- Reading Area ---- */
+
+.reading-area {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Text Pane - full width by default */
+.reading-area .text-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition: flex 0.4s ease, max-width 0.4s ease;
+}
+
+/* When PDF is shown, text pane shrinks to 50% */
+.reading-area.pdf-open .text-pane {
+    flex: 0 0 50%;
+    max-width: 50%;
+    border-right: 1px solid var(--border-medium);
+}
+
+/* PDF Pane - hidden by default, slides in with animation */
+.reading-area .pdf-pane {
+    display: none;
+    flex: 0 0 50%;
+    max-width: 50%;
+    background: #e8ddd0;
+    flex-direction: column;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.reading-area.pdf-open .pdf-pane {
+    display: flex;
+    opacity: 1;
+}
+
+/* ---- Pagination ---- */
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0.5rem 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--accent-bg);
+    flex-shrink: 0;
+}
+
+.pagination button {
+    padding: 4px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
+    background: var(--bg-content);
+    color: #4d331a;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.pagination button:hover:not(:disabled) {
+    background: var(--accent-bg-hover);
+    border-color: var(--accent);
+}
+
+.pagination button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.pagination .page-info {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+}
+
+
+.pagination .page-input {
+    width: 40px;
+    padding: 3px 4px;
+    border: 1px solid var(--border-medium);
+    border-radius: 12px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    background: #fff;
+}
+
+.pagination .page-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.pagination .page-progress {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+/* ---- Reader Content ---- */
+
+.content {
+    flex: 1;
+    font-size: 1.2rem;
+    line-height: 2.2;
+    text-align: justify;
+    color: var(--text-primary);
+    word-break: break-word;
+    overflow-y: auto;
+    padding: 1.2rem 2rem;
+    font-family: var(--font-tibetan);
+    background: var(--bg-content);
+}
+
+.content .placeholder {
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-style: italic;
+    display: block;
+    text-align: center;
+    padding: 60px 20px;
+}
+
+/* Text lines */
+.text-line {
+    padding: 1px 0;
+    transition: background 0.1s;
+    cursor: default;
+}
+
+.text-line:hover {
+    background: var(--accent-light);
+}
+
+/* Editable content */
+.editable-content {
+    min-height: 300px;
+    padding: 8px 12px;
+    border: 2px dashed var(--accent);
+    border-radius: 6px;
+    background: #fffdf8;
+    outline: none;
+    line-height: 2.2;
+    font-family: var(--font-tibetan);
+    font-size: 1.2rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.editable-content:focus {
+    border-color: #8b5e3c;
+    box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.15);
+}
+
+
+/* ---- PDF Pane ---- */
+
+.pdf-pane .pdf-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    background: var(--accent-bg);
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.pdf-pane .pdf-label {
+    font-weight: bold;
+    flex: 1;
+    letter-spacing: 0.05em;
+}
+
+
+.pdf-pane .pdf-page-info {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.pdf-pane .pdf-close {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+}
+
+.pdf-pane .pdf-viewer {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    background: #e8ddd0;
+}
+
+.pdf-pane .pdf-viewer img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border-medium);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 2px;
+}
+
+.pdf-pane .pdf-viewer .placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.85rem;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+/* ---- Status Bar ---- */
+
+.status {
+    font-size: 0.72rem;
+    text-align: center;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-light);
+    padding: 0.4rem;
+    flex-shrink: 0;
+}
+
+.status .error-msg {
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-radius: 20px;
+    padding: 2px 10px;
+    display: inline-block;
+}
+
+.status .success-msg {
+    color: var(--success);
+}
+
+/* ---- Translation Popup ---- */
+
+.dict-popup {
+    position: fixed;
+    background: #f5efe0;
+    border: 1px solid #c4a87a;
+    border-radius: 6px;
+    padding: 8px 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    font-size: 0.9rem;
+    max-width: 350px;
+    font-family: var(--font-body);
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 800px) {
+    .reader-topbar {
+        padding: 0.4rem 0.8rem;
+        flex-wrap: wrap;
+    }
+    .reader-title {
+        order: -1;
+        flex: 0 0 100%;
+        text-align: center;
+        margin-bottom: 4px;
+    }
+    .content {
+        font-size: 1.05rem;
+        padding: 0.8rem 1rem;
+    }
+    .reading-area.pdf-open {
+        flex-direction: column;
+    }
+    .reading-area.pdf-open .text-pane {
+        flex: 0 0 100%;
+        max-width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border-medium);
+        max-height: 50vh;
+    }
+    .reading-area .pdf-pane {
+        flex: 0 0 50%;
+        max-width: 100%;
+    }
+    .reading-area.pdf-open .pdf-pane {
+        max-height: 50vh;
+    }
+}
