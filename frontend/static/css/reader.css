@@ -499,6 +499,128 @@
     text-align: center;
 }
 
+/* ---- Markdown styles inside AI messages ---- */
+.ai-msg-content h2,
+.ai-msg-content h3,
+.ai-msg-content h4 {
+    margin: 0.5em 0 0.3em;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-primary);
+}
+.ai-msg-content h2 { font-size: 1rem; }
+.ai-msg-content h3 { font-size: 0.92rem; }
+.ai-msg-content h4 { font-size: 0.85rem; }
+
+.ai-msg-content p {
+    margin: 0.3em 0;
+    line-height: 1.6;
+}
+
+.ai-msg-content strong {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.ai-msg-content em {
+    font-style: italic;
+}
+
+.ai-msg-content code {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.78em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #e8e0d8;
+    color: #8a3a1a;
+    border: 1px solid #d4c8b8;
+}
+
+.ai-msg-content pre {
+    margin: 0.4em 0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: #2d2d2d;
+    color: #e0e0e0;
+    overflow-x: auto;
+    font-size: 0.78em;
+    line-height: 1.4;
+    border: 1px solid #444;
+}
+
+.ai-msg-content pre code {
+    background: transparent;
+    color: inherit;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+}
+
+.ai-msg-content ul,
+.ai-msg-content ol {
+    margin: 0.3em 0;
+    padding-left: 1.5em;
+}
+
+.ai-msg-content li {
+    margin: 0.15em 0;
+    line-height: 1.5;
+}
+
+.ai-msg-content blockquote {
+    margin: 0.4em 0;
+    padding: 4px 10px;
+    border-left: 3px solid #8a6a9a;
+    background: #f5f0f5;
+    color: var(--text-secondary);
+    font-style: italic;
+    border-radius: 0 4px 4px 0;
+}
+
+.ai-msg-content hr {
+    border: none;
+    border-top: 1px solid #d4c8d0;
+    margin: 0.6em 0;
+}
+
+.ai-msg-content a {
+    color: #6a4a8a;
+    text-decoration: underline;
+}
+
+.ai-msg-content a:hover {
+    color: #8a6aaa;
+}
+
+.ai-msg-content table {
+    border-collapse: collapse;
+    margin: 0.4em 0;
+    font-size: 0.78em;
+    width: 100%;
+}
+
+.ai-msg-content th,
+.ai-msg-content td {
+    border: 1px solid #d4c8d0;
+    padding: 4px 8px;
+    text-align: left;
+}
+
+.ai-msg-content th {
+    background: #f0e8f0;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.ai-msg-content td {
+    background: #fff;
+}
+
+.ai-msg-content del {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
 .ai-message-error .ai-msg-content {
     background: var(--danger-bg);
     color: var(--danger);

@@ -92,6 +92,87 @@
         return div.innerHTML;
     }
 
+    /**
+     * Simple Markdown to HTML renderer.
+     * Supports: headings, bold, italic, inline code, code blocks,
+     * unordered/ordered lists, blockquotes, horizontal rules, links, tables.
+     */
+    function renderMarkdown(text) {
+        // Escape HTML first to prevent XSS
+        let html = escapeHtml(text);
+        
+        // Code blocks (``` ... ```) - must be processed before inline code
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+            const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : '';
+            return `<pre><code${langClass}>${code.trim()}</code></pre>`;
+        });
+        
+        // Inline code (`code`)
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        
+        // Headings (## Heading)
+        html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+        html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+        
+        // Bold (**text** or __text__)
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+        
+        // Italic (*text* or _text_)
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+        
+        // Strikethrough (~~text~~)
+        html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+        
+        // Horizontal rules (---, ***, ___)
+        html = html.replace(/^[-*_]{3,}\s*$/gm, '<hr>');
+        
+        // Blockquotes (> text)
+        html = html.replace(/^>\s?(.+)$/gm, '<blockquote>$1</blockquote>');
+        
+        // Unordered lists (- item or * item)
+        html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+            return '<ul>' + match.replace(/\n$/, '') + '</ul>';
+        });
+        
+        // Ordered lists (1. item)
+        html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+            return '<ol>' + match.replace(/\n$/, '') + '</ol>';
+        });
+        
+        // Links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        
+        // Tables (simple pipe-based)
+        html = html.replace(/^(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)*)/gm, (match, header, separator, rows) => {
+            const headers = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+            const bodyRows = rows.trim().split('\n').map(row => {
+                const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            return `<table><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+        });
+        
+        // Line breaks (double newline = paragraph)
+        html = html.replace(/\n\n/g, '</p><p>');
+        
+        // Single newlines within paragraphs become <br>
+        html = html.replace(/\n/g, '<br>');
+        
+        // Wrap in paragraph if not already wrapped in block elements
+        if (!html.startsWith('<h') && !html.startsWith('<p') && !html.startsWith('<pre') && 
+            !html.startsWith('<ul') && !html.startsWith('<ol') && !html.startsWith('<blockquote') &&
+            !html.startsWith('<table') && !html.startsWith('<hr')) {
+            html = '<p>' + html + '</p>';
+        }
+        
+        return html;
+    }
+
     function debounce(fn, delay) {
         let timer;
         return function(...args) {
@@ -685,7 +766,9 @@
     function addAiMessage(role, content) {
         const msgDiv = document.createElement('div');
         msgDiv.className = `ai-message ai-message-${role}`;
-        msgDiv.innerHTML = `<div class="ai-msg-content">${escapeHtml(content)}</div>`;
+        // Render markdown for assistant messages, escape HTML for others
+        const renderedContent = (role === 'assistant') ? renderMarkdown(content) : escapeHtml(content);
+        msgDiv.innerHTML = `<div class="ai-msg-content">${renderedContent}</div>`;
         aiMessages.appendChild(msgDiv);
         aiMessages.scrollTop = aiMessages.scrollHeight;
     }
